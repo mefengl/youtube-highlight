@@ -128,5 +128,5 @@ export default defineContentScript({
     ui.mount()
   },
 
-  matches: ['<all_urls>'],
+  matches: ['*://www.youtube.com/*'],
 })
