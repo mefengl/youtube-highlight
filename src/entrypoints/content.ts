@@ -46,7 +46,7 @@ export default defineContentScript({
           return renderer
         }
 
-        // Update element style
+        // Update element style using view count thresholds
         function updateElementStyle(element: HTMLElement, viewCount: number) {
           if (viewCount < 1000) {
             // Videos with fewer than 1000 views have a gray overlay
@@ -79,15 +79,42 @@ export default defineContentScript({
           console.log(`Updated element style for view count: ${viewCount}`)
         }
 
+        // Update element style using percentiles
+        function updateElementStyleByPercentile(element: HTMLElement, percentile: number) {
+          if (percentile >= 80) {
+            element.style.opacity = '1'
+            element.style.animation = 'glow 1.5s infinite alternate'
+            element.style.filter = 'drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5))'
+          }
+          else if (percentile >= 60) {
+            element.style.opacity = '1'
+            element.style.filter = 'drop-shadow(0 0 10px rgba(128, 0, 255, 0.6))'
+          }
+          else if (percentile >= 30) {
+            element.style.opacity = '1'
+            element.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
+          }
+          else if (percentile >= 15) {
+            element.style.opacity = '1'
+            element.style.filter = 'none'
+          }
+          else {
+            element.style.opacity = '0.2'
+            element.style.filter = 'none'
+          }
+          // eslint-disable-next-line no-console
+          console.log(`Updated element style for percentile: ${percentile}`)
+        }
+
         // Add animation styles
         const style = document.createElement('style')
         style.innerHTML = `
 @keyframes glow {
   from {
-      filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5));
+    filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5));
   }
   to {
-      filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.7)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.7));
+    filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.7)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.7));
   }
 }
 `
@@ -101,22 +128,49 @@ export default defineContentScript({
           // eslint-disable-next-line no-console
           console.log('Running update cycle...')
           const elements = getElementsWithViews()
+          const viewCounts: { el: Element, viewCount: number }[] = []
+
           elements.forEach((el) => {
             const viewText = el.textContent?.trim()
             if (viewText) {
               const viewCount = extractViewCount(viewText)
 
               if (viewCount !== null) {
-                const renderer = getRendererElement(el)
-                if (renderer && !processedElements.has(renderer)) {
-                  updateElementStyle(renderer, viewCount)
-                  processedElements.add(renderer)
-                  // eslint-disable-next-line no-console
-                  console.log(`Processed renderer: ${renderer}`)
-                }
+                viewCounts.push({ el, viewCount })
               }
             }
           })
+
+          const totalElements = viewCounts.length
+          const orangeCount = viewCounts.filter(({ viewCount }) => viewCount >= 500000 && viewCount < 1000000).length
+          const orangePercentage = (orangeCount / totalElements) * 100
+
+          if (orangePercentage > 50) {
+            // Use percentile-based styling
+            viewCounts.sort((a, b) => b.viewCount - a.viewCount)
+            viewCounts.forEach(({ el, viewCount }, index) => {
+              const renderer = getRendererElement(el)
+              if (renderer && !processedElements.has(renderer)) {
+                const percentile = (index / totalElements) * 100
+                updateElementStyleByPercentile(renderer as HTMLElement, percentile)
+                processedElements.add(renderer)
+                // eslint-disable-next-line no-console
+                console.log(`Processed renderer with percentile: ${renderer}`)
+              }
+            })
+          }
+          else {
+            // Use view count-based styling
+            viewCounts.forEach(({ el, viewCount }) => {
+              const renderer = getRendererElement(el)
+              if (renderer && !processedElements.has(renderer)) {
+                updateElementStyle(renderer as HTMLElement, viewCount)
+                processedElements.add(renderer)
+                // eslint-disable-next-line no-console
+                console.log(`Processed renderer with view count: ${renderer}`)
+              }
+            })
+          }
         }, 1000)
 
         // eslint-disable-next-line no-console
