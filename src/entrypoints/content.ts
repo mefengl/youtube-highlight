@@ -38,9 +38,9 @@ export default defineContentScript({
           return count
         }
 
-        // Find the corresponding video element (supports ytd-rich-item-renderer, ytd-video-renderer, and ytd-compact-video-renderer)
+        // Find the corresponding video element
         function getRendererElement(viewElement: Element): Element | null {
-          const renderer = viewElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer')
+          const renderer = viewElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer')
           // eslint-disable-next-line no-console
           console.log(`Found renderer element: ${renderer}`)
           return renderer
@@ -148,7 +148,7 @@ export default defineContentScript({
           if (orangePercentage > 50) {
             // Use percentile-based styling
             viewCounts.sort((a, b) => b.viewCount - a.viewCount)
-            viewCounts.forEach(({ el, viewCount }, index) => {
+            viewCounts.forEach(({ el }, index) => {
               const renderer = getRendererElement(el)
               if (renderer && !processedElements.has(renderer)) {
                 const percentile = (index / totalElements) * 100
