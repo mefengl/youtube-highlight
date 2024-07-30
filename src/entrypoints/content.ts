@@ -39,7 +39,7 @@ export default defineContentScript({
         }
 
         // Find the corresponding video element
-        function getRendererElement(viewElement: Element): Element | null {
+        function getRendererElement(viewElement: Element) {
           const renderer = viewElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer')
           // eslint-disable-next-line no-console
           console.log(`Found renderer element: ${renderer}`)
@@ -170,6 +170,23 @@ export default defineContentScript({
                 console.log(`Processed renderer with view count: ${renderer}`)
               }
             })
+
+            // Check if no elements were processed for highlighting
+            if (processedElements.size === 0) {
+              // Apply green effect to top 20% of videos
+              viewCounts.sort((a, b) => b.viewCount - a.viewCount)
+              const top20PercentCount = Math.ceil(totalElements * 0.2)
+              viewCounts.slice(0, top20PercentCount).forEach(({ el }) => {
+                const renderer = getRendererElement(el) as HTMLElement
+                if (renderer) {
+                  renderer.style.opacity = '1'
+                  renderer.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
+                  processedElements.add(renderer)
+                  // eslint-disable-next-line no-console
+                  console.log(`Applied green effect to top 20% renderer: ${renderer}`)
+                }
+              })
+            }
           }
         }, 1000)
 
