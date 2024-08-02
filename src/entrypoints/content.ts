@@ -7,8 +7,6 @@ export default defineContentScript({
         // Run JavaScript
         // Get all elements that contain view count information
         function getElementsWithViews(): NodeListOf<Element> {
-          // eslint-disable-next-line no-console
-          console.log('Fetching elements with views...')
           return document.querySelectorAll('#metadata-line, .metadata-line')
         }
 
@@ -16,8 +14,6 @@ export default defineContentScript({
         function extractViewCount(text: string): null | number {
           const match = text.match(/(\d+(?:\.\d+)?[MK]?)\sviews/)
           if (!match) {
-            // eslint-disable-next-line no-console
-            console.log(`No view count found in text: ${text}`)
             return null
           }
 
@@ -33,16 +29,12 @@ export default defineContentScript({
             count = Number.parseInt(countStr)
           }
 
-          // eslint-disable-next-line no-console
-          console.log(`Extracted view count: ${count} from text: ${text}`)
           return count
         }
 
         // Find the corresponding video element
         function getRendererElement(viewElement: Element) {
           const renderer = viewElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer')
-          // eslint-disable-next-line no-console
-          console.log(`Found renderer element: ${renderer}`)
           return renderer
         }
 
@@ -74,9 +66,6 @@ export default defineContentScript({
             element.style.animation = 'glow 1.5s infinite alternate'
             element.style.filter = 'drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5))'
           }
-
-          // eslint-disable-next-line no-console
-          console.log(`Updated element style for view count: ${viewCount}`)
         }
 
         // Update element style using percentiles
@@ -102,8 +91,6 @@ export default defineContentScript({
             element.style.opacity = '0.2'
             element.style.filter = 'none'
           }
-          // eslint-disable-next-line no-console
-          console.log(`Updated element style for percentile: ${percentile}`)
         }
 
         // Add animation styles
@@ -125,8 +112,6 @@ export default defineContentScript({
 
         // Run the update every second
         setInterval(() => {
-          // eslint-disable-next-line no-console
-          console.log('Running update cycle...')
           const elements = getElementsWithViews()
           const viewCounts: { el: Element, viewCount: number }[] = []
 
@@ -154,8 +139,6 @@ export default defineContentScript({
                 const percentile = (index / totalElements) * 100
                 updateElementStyleByPercentile(renderer as HTMLElement, percentile)
                 processedElements.add(renderer)
-                // eslint-disable-next-line no-console
-                console.log(`Processed renderer with percentile: ${renderer}`)
               }
             })
           }
@@ -166,8 +149,6 @@ export default defineContentScript({
               if (renderer && !processedElements.has(renderer)) {
                 updateElementStyle(renderer as HTMLElement, viewCount)
                 processedElements.add(renderer)
-                // eslint-disable-next-line no-console
-                console.log(`Processed renderer with view count: ${renderer}`)
               }
             })
 
@@ -182,16 +163,11 @@ export default defineContentScript({
                   renderer.style.opacity = '1'
                   renderer.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
                   processedElements.add(renderer)
-                  // eslint-disable-next-line no-console
-                  console.log(`Applied green effect to top 20% renderer: ${renderer}`)
                 }
               })
             }
           }
         }, 1000)
-
-        // eslint-disable-next-line no-console
-        console.log('Script initialized. Monitoring YouTube video views...')
       },
       position: 'inline',
     })
