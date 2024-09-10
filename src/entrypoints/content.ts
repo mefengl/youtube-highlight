@@ -70,20 +70,20 @@ export default defineContentScript({
 
         // Update element style using percentiles
         function updateElementStyleByPercentile(element: HTMLElement, percentile: number) {
-          if (percentile >= 80) {
+          if (percentile <= 20) {
             element.style.opacity = '1'
             element.style.animation = 'glow 1.5s infinite alternate'
             element.style.filter = 'drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5))'
           }
-          else if (percentile >= 60) {
+          else if (percentile <= 40) {
             element.style.opacity = '1'
             element.style.filter = 'drop-shadow(0 0 10px rgba(128, 0, 255, 0.6))'
           }
-          else if (percentile >= 30) {
+          else if (percentile <= 70) {
             element.style.opacity = '1'
             element.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
           }
-          else if (percentile >= 15) {
+          else if (percentile <= 85) {
             element.style.opacity = '1'
             element.style.filter = 'none'
           }
@@ -135,8 +135,8 @@ export default defineContentScript({
             viewCounts.sort((a, b) => b.viewCount - a.viewCount)
             viewCounts.forEach(({ el }, index) => {
               const renderer = getRendererElement(el)
-              if (renderer && !processedElements.has(renderer)) {
-                const percentile = (index / totalElements) * 100
+              if (renderer) {
+                const percentile = (index / (totalElements - 1)) * 100
                 updateElementStyleByPercentile(renderer as HTMLElement, percentile)
                 processedElements.add(renderer)
               }
@@ -146,14 +146,14 @@ export default defineContentScript({
             // Use view count-based styling
             viewCounts.forEach(({ el, viewCount }) => {
               const renderer = getRendererElement(el)
-              if (renderer && !processedElements.has(renderer)) {
+              if (renderer) {
                 updateElementStyle(renderer as HTMLElement, viewCount)
                 processedElements.add(renderer)
               }
             })
 
             // Check if no elements were processed for highlighting
-            if (processedElements.size === 0) {
+            if (processedElements.size === 0 && totalElements > 0) {
               // Apply green effect to top 20% of videos
               viewCounts.sort((a, b) => b.viewCount - a.viewCount)
               const top20PercentCount = Math.ceil(totalElements * 0.2)
@@ -167,6 +167,9 @@ export default defineContentScript({
               })
             }
           }
+
+          // Clear the processed elements set for the next update
+          processedElements.clear()
         }, 1000)
       },
       position: 'inline',
