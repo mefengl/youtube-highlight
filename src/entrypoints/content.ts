@@ -1,176 +1,115 @@
-// Integrated - Vanilla
-// More: https://wxt.dev/guide/content-script-ui.html
+/* eslint-disable no-console */
+// Integrated - Optimized with MutationObserver (no polling)
 export default defineContentScript({
   main(ctx) {
     const ui = createIntegratedUi(ctx, {
       onMount: () => {
-        // Run JavaScript
-        // Get all elements that contain view count information
-        function getElementsWithViews(): NodeListOf<Element> {
-          return document.querySelectorAll('#metadata-line, .metadata-line')
-        }
-
-        // Extract the view count number
-        function extractViewCount(text: string): null | number {
-          const match = text.match(/(\d+(?:\.\d+)?[MK]?)\sviews/)
-          if (!match) {
-            return null
-          }
-
-          const countStr = match[1]
-          let count
-          if (countStr.endsWith('M')) {
-            count = Number.parseFloat(countStr) * 1000000
-          }
-          else if (countStr.endsWith('K')) {
-            count = Number.parseFloat(countStr) * 1000
-          }
-          else {
-            count = Number.parseInt(countStr)
-          }
-
-          return count
-        }
-
-        // Find the corresponding video element
-        function getRendererElement(viewElement: Element) {
-          const renderer = viewElement.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer')
-          return renderer
-        }
-
-        // Update element style using view count thresholds
-        function updateElementStyle(element: HTMLElement, viewCount: number) {
-          if (viewCount < 1000) {
-            // Videos with fewer than 1000 views have a gray overlay
-            element.style.opacity = '0.2'
-            element.style.filter = 'none' // Remove highlight effect
-          }
-          else if (viewCount >= 1000 && viewCount < 100000) {
-            // Videos with 1000 to 99999 views retain the default style
-            element.style.opacity = '1'
-            element.style.filter = 'none' // Remove highlight effect
-          }
-          else if (viewCount >= 100000 && viewCount < 500000) {
-            // Videos with 100000 to 499999 views have a moderate green highlight effect
-            element.style.opacity = '1'
-            element.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
-          }
-          else if (viewCount >= 500000 && viewCount < 1000000) {
-            // Videos with 500000 to 999999 views have an enhanced purple highlight effect
-            element.style.opacity = '1'
-            element.style.filter = 'drop-shadow(0 0 10px rgba(128, 0, 255, 0.6))'
-          }
-          else if (viewCount >= 1000000) {
-            // Videos with 1000000 or more views have a gradient red highlight effect and animation
-            element.style.opacity = '1'
-            element.style.animation = 'glow 1.5s infinite alternate'
-            element.style.filter = 'drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5))'
-          }
-        }
-
-        // Update element style using percentiles
-        function updateElementStyleByPercentile(element: HTMLElement, percentile: number) {
-          if (percentile <= 20) {
-            element.style.opacity = '1'
-            element.style.animation = 'glow 1.5s infinite alternate'
-            element.style.filter = 'drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5))'
-          }
-          else if (percentile <= 40) {
-            element.style.opacity = '1'
-            element.style.filter = 'drop-shadow(0 0 10px rgba(128, 0, 255, 0.6))'
-          }
-          else if (percentile <= 70) {
-            element.style.opacity = '1'
-            element.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
-          }
-          else if (percentile <= 85) {
-            element.style.opacity = '1'
-            element.style.filter = 'none'
-          }
-          else {
-            element.style.opacity = '0.2'
-            element.style.filter = 'none'
-          }
-        }
-
-        // Add animation styles
+        // ------------------------------------------------------------
+        // Inject tier‑based CSS classes (single injection per page)
+        // ------------------------------------------------------------
         const style = document.createElement('style')
-        style.innerHTML = `
-@keyframes glow {
-  from {
-    filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5));
-  }
-  to {
-    filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.7)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.7));
-  }
+        style.textContent = `
+@keyframes vh-glow {
+  from { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5)); }
+  to   { filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.7)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.7)); }
 }
+.vh-low      { opacity: 0.2 !important; filter: none !important; }
+.vh-normal   { opacity: 1 !important;  filter: none !important; }
+.vh-green    { opacity: 1 !important;  filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.5)) !important; }
+.vh-purple   { opacity: 1 !important;  filter: drop-shadow(0 0 10px rgba(128, 0, 255, 0.6)) !important; }
+.vh-red      { opacity: 1 !important;  animation: vh-glow 1.5s infinite alternate; filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 165, 0, 0.5)) !important; }
 `
         document.head.appendChild(style)
 
-        // Initialize a set to keep track of processed elements
-        const processedElements = new Set<Element>()
+        // ------------------------------------------------------------
+        // Helper structures
+        // ------------------------------------------------------------
+        // Track if a #metadata-line element has been processed
+        const processed = new WeakSet<Element>()
 
-        // Run the update every second
-        setInterval(() => {
-          const elements = getElementsWithViews()
-          const viewCounts: { el: Element, viewCount: number }[] = []
+        // Track view counts by element (cache)
+        const viewCache = new WeakMap<Element, number>()
 
-          elements.forEach((el) => {
-            const viewText = el.textContent?.trim()
-            if (viewText) {
-              const viewCount = extractViewCount(viewText)
+        // Track all renderers (optional — can be used for analytics)
+        const allViewData: { renderer: HTMLElement; viewCount: number }[] = []
 
-              if (viewCount !== null) {
-                viewCounts.push({ el, viewCount })
-              }
-            }
-          })
+        // ------------------------------------------------------------
+        // Utilities
+        // ------------------------------------------------------------
+        function extractViewCount(text: string): null | number {
+          // Support "1.2M views" and "2,345 次观看"
+          const match = text.match(/([\d,.]+)(?:\s*(?:[MK]))?\s*(?:views|次观看)/i)
+          if (!match) return null
 
-          const totalElements = viewCounts.length
-          const orangeCount = viewCounts.filter(({ viewCount }) => viewCount >= 500000 && viewCount < 1000000).length
-          const orangePercentage = (orangeCount / totalElements) * 100
+          let numStr = match[1].replace(/,/g, '')
+          if (text.includes('M')) return parseFloat(numStr) * 1_000_000
+          if (text.includes('K')) return parseFloat(numStr) * 1_000
+          return parseFloat(numStr)
+        }
 
-          if (orangePercentage > 50) {
-            // Use percentile-based styling
-            viewCounts.sort((a, b) => b.viewCount - a.viewCount)
-            viewCounts.forEach(({ el }, index) => {
-              const renderer = getRendererElement(el)
-              if (renderer) {
-                const percentile = (index / (totalElements - 1)) * 100
-                updateElementStyleByPercentile(renderer as HTMLElement, percentile)
-                processedElements.add(renderer)
-              }
+        function tierClass(viewCount: number): string {
+          if (viewCount < 1_000) return 'vh-low'
+          if (viewCount < 100_000) return 'vh-normal'
+          if (viewCount < 500_000) return 'vh-green'
+          if (viewCount < 1_000_000) return 'vh-purple'
+          return 'vh-red'
+        }
+
+        function applyTier(renderer: HTMLElement, viewCount: number) {
+          const cls = tierClass(viewCount)
+          renderer.classList.remove('vh-low', 'vh-normal', 'vh-green', 'vh-purple', 'vh-red')
+          renderer.classList.add(cls)
+        }
+
+        function handleMetadataElement(el: Element) {
+          if (processed.has(el)) return
+          processed.add(el)
+
+          const txt = el.textContent?.trim() || ''
+          const count = extractViewCount(txt)
+          if (count == null) return
+
+          viewCache.set(el, count)
+
+          const renderer = el.closest<HTMLElement>(
+            'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer',
+          )
+          if (!renderer) return
+
+          allViewData.push({ renderer, viewCount: count })
+          applyTier(renderer, count)
+        }
+
+        // ------------------------------------------------------------
+        // Initial scan (above‑the‑fold)
+        // ------------------------------------------------------------
+        document.querySelectorAll('#metadata-line, .metadata-line').forEach(handleMetadataElement)
+
+        // ------------------------------------------------------------
+        // Observe new nodes for dynamic / infinite scroll
+        // ------------------------------------------------------------
+        const mo = new MutationObserver((records) => {
+          for (const record of records) {
+            record.addedNodes.forEach((node) => {
+              if (!(node instanceof Element)) return
+
+              // If the node itself is a metadata‑line
+              if (node.matches?.('#metadata-line, .metadata-line')) handleMetadataElement(node)
+
+              // Or it may contain metadata‑lines deeper
+              node.querySelectorAll?.('#metadata-line, .metadata-line').forEach(handleMetadataElement)
             })
           }
-          else {
-            // Use view count-based styling
-            viewCounts.forEach(({ el, viewCount }) => {
-              const renderer = getRendererElement(el)
-              if (renderer) {
-                updateElementStyle(renderer as HTMLElement, viewCount)
-                processedElements.add(renderer)
-              }
-            })
+        })
+        mo.observe(document.body, { childList: true, subtree: true })
 
-            // Check if no elements were processed for highlighting
-            if (processedElements.size === 0 && totalElements > 0) {
-              // Apply green effect to top 20% of videos
-              viewCounts.sort((a, b) => b.viewCount - a.viewCount)
-              const top20PercentCount = Math.ceil(totalElements * 0.2)
-              viewCounts.slice(0, top20PercentCount).forEach(({ el }) => {
-                const renderer = getRendererElement(el) as HTMLElement
-                if (renderer) {
-                  renderer.style.opacity = '1'
-                  renderer.style.filter = 'drop-shadow(0 0 8px rgba(0, 255, 0, 0.5))'
-                  processedElements.add(renderer)
-                }
-              })
-            }
-          }
-
-          // Clear the processed elements set for the next update
-          processedElements.clear()
-        }, 1000)
+        // ------------------------------------------------------------
+        // Pause observer when tab is hidden to save CPU
+        // ------------------------------------------------------------
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) mo.disconnect()
+          else mo.observe(document.body, { childList: true, subtree: true })
+        })
       },
       position: 'inline',
     })
