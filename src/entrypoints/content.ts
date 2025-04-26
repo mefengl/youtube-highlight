@@ -62,18 +62,24 @@ export default defineContentScript({
         }
 
         function handleMetadataElement(el: Element) {
+          // Avoid double-processing
           if (processed.has(el)) return
-          processed.add(el)
 
           const txt = el.textContent?.trim() || ''
           const count = extractViewCount(txt)
+
+          // If view count not yet present, skip for now – we will catch it on the next mutation
           if (count == null) return
+
+          // Mark as processed only after we have a valid view count
+          processed.add(el)
 
           viewCache.set(el, count)
 
           const renderer = el.closest<HTMLElement>(
             'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer',
           )
+
           if (!renderer) return
 
           allViewData.push({ renderer, viewCount: count })
