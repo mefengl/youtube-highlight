@@ -72,7 +72,7 @@ export default defineContentScript({
           viewCache.set(el, count)
 
           const renderer = el.closest<HTMLElement>(
-            'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer',
+            'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer',
           )
           if (!renderer) return
 
