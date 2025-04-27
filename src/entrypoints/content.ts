@@ -99,11 +99,16 @@ export default defineContentScript({
             record.addedNodes.forEach((node) => {
               if (!(node instanceof Element)) return
 
-              // If the node itself is a metadata‑line
+              // 1) If the node itself *is* a metadata-line
               if (node.matches?.('#metadata-line, .metadata-line')) handleMetadataElement(node)
 
-              // Or it may contain metadata‑lines deeper
+              // 2) If the node *contains* metadata-lines deeper inside
               node.querySelectorAll?.('#metadata-line, .metadata-line').forEach(handleMetadataElement)
+
+              // 3) If the node is a child inserted *within* a metadata-line that already existed,
+              //    walk up to see if we should now process that parent (view text just arrived).
+              const parentMeta = node.closest?.('#metadata-line, .metadata-line')
+              if (parentMeta) handleMetadataElement(parentMeta)
             })
           }
         })
